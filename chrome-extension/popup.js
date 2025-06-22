@@ -31,6 +31,37 @@ class PopupController {
   setupEventListeners() {
     this.refreshBtn.addEventListener('click', () => this.refreshAnalysis());
     this.debugBtn.addEventListener('click', () => this.toggleDebugMode());
+    
+    // Notes functionality
+    const notesBtn = document.getElementById('notesBtn');
+    if (notesBtn) {
+      notesBtn.addEventListener('click', () => this.openNotesModal());
+    }
+    
+    const closeNotesModal = document.getElementById('closeNotesModal');
+    if (closeNotesModal) {
+      closeNotesModal.addEventListener('click', () => this.closeNotesModal());
+    }
+    
+    const clearNotesBtn = document.getElementById('clearNotesBtn');
+    if (clearNotesBtn) {
+      clearNotesBtn.addEventListener('click', () => this.clearNotes());
+    }
+    
+    const exportNotesBtn = document.getElementById('exportNotesBtn');
+    if (exportNotesBtn) {
+      exportNotesBtn.addEventListener('click', () => this.exportNotes());
+    }
+    
+    // Close modal when clicking outside
+    const notesModal = document.getElementById('notesModal');
+    if (notesModal) {
+      notesModal.addEventListener('click', (e) => {
+        if (e.target === notesModal) {
+          this.closeNotesModal();
+        }
+      });
+    }
 
     // Listen for activity updates and verification results from background script
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -560,6 +591,188 @@ class PopupController {
       return { status: 'failed', icon: '❌', message: 'Not accessible' };
     } else {
       return { status: 'warning', icon: '⚠️', message: 'Needs verification' };
+    }
+  }
+
+  async openNotesModal() {
+    const modal = document.getElementById('notesModal');
+    if (modal) {
+      modal.style.display = 'block';
+      await this.loadEmailSummaries();
+    }
+  }
+
+  closeNotesModal() {
+    const modal = document.getElementById('notesModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
+  async loadEmailSummaries() {
+    const notesList = document.getElementById('notesList');
+    if (!notesList) return;
+
+    try {
+      notesList.innerHTML = '<div class="loading">Loading email summaries...</div>';
+      
+      // Get email summaries from Chrome storage
+      const result = await chrome.storage.local.get(['emailSummaries']);
+      const summaries = result.emailSummaries || [];
+      
+      if (summaries.length === 0) {
+        notesList.innerHTML = `
+          <div class="empty-state">
+            <p>📝 No email summaries yet</p>
+            <p>Visit Gmail and the extension will automatically create 2-line summaries for all your emails!</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Display summaries
+      notesList.innerHTML = '';
+      summaries.forEach(summary => {
+        const noteItem = this.createNoteItem(summary);
+        notesList.appendChild(noteItem);
+      });
+
+    } catch (error) {
+      console.error('Error loading summaries:', error);
+      notesList.innerHTML = '<div class="error">Error loading summaries</div>';
+    }
+  }
+
+  createNoteItem(summary) {
+    const item = document.createElement('div');
+    item.className = 'note-item';
+    
+    const timeAgo = this.getTimeAgo(summary.timestamp);
+    const senderName = summary.sender.split('@')[0];
+    
+    // Determine note type and add special styling
+    const emailType = this.getEmailType(summary.summary.line1);
+    item.classList.add(`note-${emailType}`);
+    
+    // Get type emoji
+    const typeEmoji = this.getTypeEmoji(emailType);
+    
+    item.innerHTML = `
+      <div class="note-bubble">
+        <div class="note-header">
+          <div class="note-sender">${senderName}</div>
+          <div class="note-time">${timeAgo}</div>
+        </div>
+        <div class="note-subject">${summary.subject}</div>
+        <div class="note-summary">
+          <div class="note-line">${typeEmoji} ${summary.summary.line1}</div>
+          <div class="note-line">${summary.summary.line2}</div>
+          <div class="note-type">${summary.summary.type || 'ai-generated'}</div>
+        </div>
+      </div>
+    `;
+    
+    // Click to open email
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', () => {
+      if (summary.url) {
+        chrome.tabs.create({ url: summary.url });
+      }
+    });
+    
+    return item;
+  }
+
+  getEmailType(line1) {
+    const text = line1.toLowerCase();
+    if (text.includes('sponsor')) return 'sponsor';
+    if (text.includes('urgent')) return 'urgent';
+    if (text.includes('meeting')) return 'meeting';
+    if (text.includes('financial')) return 'financial';
+    if (text.includes('newsletter')) return 'newsletter';
+    return 'general';
+  }
+
+  getTypeEmoji(type) {
+    const emojis = {
+      sponsor: '💼',
+      urgent: '🚨',
+      meeting: '📅',
+      financial: '💰',
+      newsletter: '📰',
+      general: '📧'
+    };
+    return emojis[type] || '📧';
+  }
+
+  getTimeAgo(timestamp) {
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return then.toLocaleDateString();
+  }
+
+  async clearNotes() {
+    if (confirm('Are you sure you want to clear all email summaries?')) {
+      try {
+        await chrome.storage.local.remove(['emailSummaries']);
+        this.updateStatus('Email summaries cleared', 'success');
+        await this.loadEmailSummaries();
+      } catch (error) {
+        console.error('Error clearing summaries:', error);
+        this.updateStatus('Error clearing summaries', 'error');
+      }
+    }
+  }
+
+  async exportNotes() {
+    try {
+      const result = await chrome.storage.local.get(['emailSummaries']);
+      const summaries = result.emailSummaries || [];
+      
+      if (summaries.length === 0) {
+        this.updateStatus('No summaries to export', 'warning');
+        return;
+      }
+
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        totalEmails: summaries.length,
+        summaries: summaries.map(s => ({
+          subject: s.subject,
+          sender: s.sender,
+          timestamp: s.timestamp,
+          summary: s.summary
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+        type: 'application/json' 
+      });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `email-summaries-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      this.updateStatus(`Exported ${summaries.length} email summaries`, 'success');
+      
+    } catch (error) {
+      console.error('Error exporting summaries:', error);
+      this.updateStatus('Error exporting summaries', 'error');
     }
   }
 

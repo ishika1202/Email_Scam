@@ -68,6 +68,11 @@ class BackgroundService {
           sendResponse({ activities: this.recentActivities });
           break;
 
+        case 'generateSummary':
+          const summary = await this.generateEmailSummary(request.data);
+          sendResponse({ summary });
+          break;
+
         default:
           sendResponse({ error: 'Unknown action' });
       }
@@ -633,6 +638,109 @@ ${emailData.flags?.map(flag => `• ${flag.message}`).join('\n') || '• No secu
     } catch (error) {
       // Popup not open, ignore
     }
+  }
+
+  async generateEmailSummary(emailData) {
+    try {
+      console.log('📝 Generating AI summary for:', emailData.subject);
+      
+      // Create intelligent summary using our analysis capabilities
+      const summary = this.createIntelligentSummary(emailData);
+      
+      console.log('✅ Generated email summary:', summary);
+      return summary;
+
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      // Return fallback summary
+      return this.generateFallbackSummary(emailData);
+    }
+  }
+
+  createIntelligentSummary(emailData) {
+    const senderName = emailData.sender.split('@')[0].replace(/[._]/g, ' ');
+    const domain = emailData.sender.split('@')[1];
+    const body = emailData.body.toLowerCase();
+    
+    // Determine email type and action
+    let emailType = 'Email';
+    let action = 'Read and respond';
+    
+    // Business/Sponsor opportunities
+    if (body.includes('sponsor') || body.includes('partnership') || 
+        body.includes('collaboration') || body.includes('brand')) {
+      emailType = 'Sponsor opportunity';
+      
+      // Extract money amount if mentioned
+      const moneyMatch = emailData.body.match(/\$([0-9,]+)/);
+      if (moneyMatch) {
+        action = `Offering $${moneyMatch[1]} for partnership`;
+      } else {
+        action = 'Partnership/collaboration proposal';
+      }
+    }
+    // Meeting/Calendar requests
+    else if (body.includes('meeting') || body.includes('call') || 
+             body.includes('schedule') || body.includes('calendar')) {
+      emailType = 'Meeting request';
+      
+      // Extract time/date if mentioned
+      const timeMatch = emailData.body.match(/(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week)/i);
+      if (timeMatch) {
+        action = `Schedule for ${timeMatch[1]}`;
+      } else {
+        action = 'Check calendar and respond';
+      }
+    }
+    // Urgent/Important items
+    else if (body.includes('urgent') || body.includes('important') || 
+             body.includes('asap') || body.includes('immediately')) {
+      emailType = 'Urgent email';
+      action = 'Requires immediate attention';
+    }
+    // Financial/Payment
+    else if (body.includes('payment') || body.includes('invoice') || 
+             body.includes('bill') || body.includes('transaction')) {
+      emailType = 'Financial email';
+      action = 'Review payment details';
+    }
+    // Follow-up emails
+    else if (body.includes('follow up') || body.includes('following up') || 
+             body.includes('checking in')) {
+      emailType = 'Follow-up';
+      action = 'Previous conversation continues';
+    }
+    // News/Updates
+    else if (body.includes('newsletter') || body.includes('update') || 
+             body.includes('announcement')) {
+      emailType = 'Newsletter/Update';
+      action = 'Industry news and updates';
+    }
+    else {
+      // Extract first meaningful sentence as action
+      const sentences = emailData.body.split(/[.!?]+/).filter(s => s.trim().length > 15);
+      if (sentences.length > 0) {
+        action = sentences[0].trim().slice(0, 50) + '...';
+      }
+    }
+
+    return {
+      line1: `${emailType} from ${this.capitalizeWords(senderName)}`,
+      line2: action.slice(0, 60),
+      type: 'ai-generated',
+      domain: domain,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  generateFallbackSummary(emailData) {
+    const senderName = emailData.sender.split('@')[0].replace(/[._]/g, ' ');
+    
+    return {
+      line1: `Email from ${this.capitalizeWords(senderName)}`,
+      line2: 'Read and respond as needed',
+      type: 'fallback'
+    };
   }
 }
 

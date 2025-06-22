@@ -208,12 +208,19 @@ class SponsorGuardAgent {
         console.log('📧 Processing email:', emailData.subject);
       }
 
-      // Quick keyword check first
+      // Only generate summaries for emails that are currently open/visible
+      if (this.isEmailCurrentlyOpen(element)) {
+        const summary = await this.generateEmailSummary(emailData);
+        await this.saveEmailSummary(emailData, summary);
+        console.log('📝 Summary saved for current email:', emailData.subject);
+      }
+
+      // Quick keyword check for sponsor detection
       if (!this.hasSponsortKeywords(emailData)) {
         if (this.debugMode) {
-          console.log('⏭️ Skipping email (no sponsor keywords):', emailData.subject);
+          console.log('⏭️ Email processed, no sponsor keywords:', emailData.subject);
         }
-        return; // Skip non-sponsor emails early
+        return; // Skip sponsor analysis
       }
 
       console.log('🎯 Found potential sponsor email:', emailData.subject);
@@ -684,6 +691,164 @@ class SponsorGuardAgent {
       console.error('Error sending sponsor data to popup:', error);
     }
   }
+
+  async generateEmailSummary(emailData) {
+    try {
+      // Send email content to background for AI summarization
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: 'generateSummary',
+          data: {
+            subject: emailData.subject,
+            sender: emailData.sender,
+            body: emailData.body.slice(0, 2000) // Limit body for API efficiency
+          }
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Summary generation error:', chrome.runtime.lastError.message);
+            resolve({ error: chrome.runtime.lastError.message });
+            return;
+          }
+          resolve(response || {});
+        });
+      });
+
+      if (response.error || !response.summary) {
+        // Fallback to simple text-based summary
+        return this.generateFallbackSummary(emailData);
+      }
+
+      return response.summary;
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      return this.generateFallbackSummary(emailData);
+    }
+  }
+
+  generateFallbackSummary(emailData) {
+    // Simple fallback summary without AI
+    const body = emailData.body.toLowerCase();
+    let category = 'Email';
+    let action = '';
+
+    // Detect email type
+    if (body.includes('sponsor') || body.includes('partnership') || body.includes('collaboration')) {
+      category = 'Sponsor Opportunity';
+      action = 'Review and respond if interested';
+    } else if (body.includes('meeting') || body.includes('call') || body.includes('schedule')) {
+      category = 'Meeting Request';
+      action = 'Check calendar and respond';
+    } else if (body.includes('invoice') || body.includes('payment') || body.includes('bill')) {
+      category = 'Financial';
+      action = 'Review payment details';
+    } else if (body.includes('urgent') || body.includes('important') || body.includes('asap')) {
+      category = 'Urgent';
+      action = 'Requires immediate attention';
+    } else {
+      // Extract first meaningful sentence
+      const sentences = emailData.body.split(/[.!?]+/).filter(s => s.trim().length > 10);
+      if (sentences.length > 0) {
+        action = sentences[0].trim().slice(0, 80) + '...';
+      } else {
+        action = 'Read and respond as needed';
+      }
+    }
+
+    return {
+      line1: `${category} from ${emailData.sender.split('@')[0]}`,
+      line2: action,
+      type: 'fallback'
+    };
+  }
+
+  async saveEmailSummary(emailData, summary) {
+    try {
+      const summaryData = {
+        id: emailData.id,
+        subject: emailData.subject,
+        sender: emailData.sender,
+        timestamp: emailData.timestamp,
+        summary: summary,
+        url: emailData.url
+      };
+
+      // Get existing summaries
+      const result = await chrome.storage.local.get(['emailSummaries']);
+      const summaries = result.emailSummaries || [];
+
+      // Remove existing summary for this email if any
+      const filteredSummaries = summaries.filter(s => s.id !== emailData.id);
+
+      // Add new summary
+      filteredSummaries.unshift(summaryData);
+
+      // Keep only last 100 summaries
+      const limitedSummaries = filteredSummaries.slice(0, 100);
+
+      // Save back to storage
+      await chrome.storage.local.set({ emailSummaries: limitedSummaries });
+
+      if (this.debugMode) {
+        console.log('💾 Email summary saved:', {
+          subject: emailData.subject,
+          summary: summary
+        });
+      }
+
+    } catch (error) {
+      console.error('Error saving email summary:', error);
+    }
+  }
+
+  async getEmailSummaries() {
+    try {
+      const result = await chrome.storage.local.get(['emailSummaries']);
+      return result.emailSummaries || [];
+    } catch (error) {
+      console.error('Error getting email summaries:', error);
+      return [];
+    }
+  }
+
+  async clearEmailSummaries() {
+    try {
+      await chrome.storage.local.remove(['emailSummaries']);
+      console.log('🗑️ Email summaries cleared');
+    } catch (error) {
+      console.error('Error clearing summaries:', error);
+    }
+  }
+
+  isEmailCurrentlyOpen(element) {
+    // Check if this email is currently being viewed (not just in the list)
+    
+    // Method 1: Check if element is in the main content area (not list view)
+    const isInMainContent = element.closest('.nH.aHU') || // Main content area
+                           element.closest('.ii.gt') || // Individual email thread
+                           element.closest('.adn.ads'); // Another content area
+    
+    // Method 2: Check if element is visible and has significant height (not collapsed)
+    const rect = element.getBoundingClientRect();
+    const isVisible = rect.height > 100 && rect.width > 200;
+    
+    // Method 3: Check if it's the currently focused/active email
+    const isActive = element.classList.contains('h7') || // Gmail active class
+                    element.hasAttribute('aria-expanded') ||
+                    element.closest('[aria-expanded="true"]');
+    
+    // Method 4: Check if it's in conversation view (not list view)
+    const isInConversation = !element.closest('.zA') && // Not in list row
+                            !element.closest('.yW'); // Not in compact view
+    
+    // Must meet multiple criteria to be considered "currently open"
+    const isCurrentlyOpen = isInMainContent && isVisible && (isActive || isInConversation);
+    
+    if (this.debugMode && isCurrentlyOpen) {
+      console.log('📖 Email is currently open, will generate summary:', element);
+    }
+    
+    return isCurrentlyOpen;
+  }
 }
 
 // Initialize when DOM is ready
@@ -699,7 +864,55 @@ if (document.readyState === 'loading') {
 window.sponsorGuardDebug = () => {
   if (window.sponsorGuard) {
     window.sponsorGuard.enableDebug();
-    console.log('SponsorGuard Stats:', window.sponsorGuard.getStats());
+    console.log('🐛 SponsorGuard Debug Mode Activated');
+    console.log('📊 Current stats:', window.sponsorGuard.getStats());
+    console.log('📝 Available debug commands:');
+    console.log('  - window.sponsorGuard.getEmailSummaries() - View all summaries');
+    console.log('  - window.sponsorGuard.clearEmailSummaries() - Clear all summaries');
+    console.log('  - sponsorGuardSummarize() - Summarize current email');
+    console.log('  - sponsorGuardTest() - Create test email');
+    console.log('  - sponsorGuardRescan() - Rescan all emails');
+    console.log('  - Click "📝 Email Notes" button in popup to view summaries UI');
+  }
+};
+
+// Manual summary trigger for current email
+window.sponsorGuardSummarize = async () => {
+  if (window.sponsorGuard) {
+    console.log('📝 Manually generating summary for current email...');
+    
+    // Find the currently open email
+    const selectors = [
+      '.ii.gt .a3s.aiL', // Main email content
+      '.adn.ads .a3s.aiL', // Another content selector  
+      '[role="listitem"] .a3s.aiL' // Alternative selector
+    ];
+    
+    let currentEmailElement = null;
+    for (const selector of selectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const element of elements) {
+        if (window.sponsorGuard.isEmailCurrentlyOpen(element)) {
+          currentEmailElement = element;
+          break;
+        }
+      }
+      if (currentEmailElement) break;
+    }
+    
+    if (currentEmailElement) {
+      const emailData = window.sponsorGuard.extractEmailData(currentEmailElement);
+      if (emailData) {
+        const summary = await window.sponsorGuard.generateEmailSummary(emailData);
+        await window.sponsorGuard.saveEmailSummary(emailData, summary);
+        console.log('✅ Summary generated:', summary);
+        console.log('📧 For email:', emailData.subject);
+        return summary;
+      }
+    }
+    
+    console.log('❌ No current email found to summarize');
+    return null;
   }
 };
 

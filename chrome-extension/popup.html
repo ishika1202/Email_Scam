@@ -334,6 +334,34 @@
     .summary-score.danger {
       color: #ef4444;
     }
+
+    .notes-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      border: none !important;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notes-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .notes-btn:hover::before {
+      left: 100%;
+    }
+
+    .notes-btn:hover {
+      transform: translateY(-2px) !important;
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3) !important;
+    }
   </style>
 </head>
 <body>
@@ -400,6 +428,10 @@
     <button id="refreshBtn">
       🔄 Refresh Analysis
     </button>
+    
+    <button id="notesBtn" class="notes-btn">
+      📝 Email Notes
+    </button>
   </div>
   
   <div class="status" id="status">
@@ -408,6 +440,25 @@
   <div class="feature-list">
     <strong>Multi-Layer Analysis</strong><br>
     WHOIS verification, domain reputation, LinkedIn validation, phone number checks
+  </div>
+
+  <!-- Notes Modal -->
+  <div id="notesModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📝 Email Notes</h3>
+        <span class="modal-close" id="closeNotesModal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="notes-controls">
+          <button id="clearNotesBtn" class="small-btn">🗑️ Clear All</button>
+          <button id="exportNotesBtn" class="small-btn">📤 Export</button>
+        </div>
+        <div id="notesList" class="notes-list">
+          <div class="loading">Loading email summaries...</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="popup.js"></script>
