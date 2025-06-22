@@ -15,6 +15,7 @@
     .header {
       text-align: center;
       margin-bottom: 24px;
+      position: relative;
     }
     
     .logo {
@@ -211,19 +212,176 @@
       opacity: 0.7;
       font-size: 10px;
     }
+
+    .debug-btn {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      padding: 4px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+      opacity: 0.7;
+    }
+    
+    .debug-btn:hover {
+      background: rgba(255,255,255,0.25);
+      opacity: 1;
+      transform: scale(1.1);
+    }
+
+    .email-count {
+      font-size: 10px;
+      opacity: 0.7;
+      margin-left: 4px;
+    }
+
+    .checklist-container {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .verification-row {
+      display: flex;
+      align-items: center;
+      padding: 6px 4px;
+      margin-bottom: 3px;
+      font-size: 12px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .verification-row:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .status-icon {
+      width: 16px;
+      text-align: center;
+      margin-right: 8px;
+      font-size: 12px;
+    }
+
+    .item-label {
+      font-weight: 500;
+      min-width: 60px;
+      opacity: 0.9;
+    }
+
+    .item-value {
+      flex: 1;
+      font-weight: 400;
+      opacity: 0.8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .verification-row.passed .status-icon {
+      color: #22c55e;
+    }
+
+    .verification-row.failed .status-icon {
+      color: #ef4444;
+    }
+
+    .verification-row.warning .status-icon {
+      color: #f59e0b;
+    }
+
+    .verification-row.passed .item-value {
+      color: #22c55e;
+      opacity: 1;
+    }
+
+    .verification-row.failed .item-value {
+      color: #ef4444;
+      opacity: 1;
+    }
+
+    .verification-row.warning .item-value {
+      color: #f59e0b;
+      opacity: 1;
+    }
+
+    .checklist-summary {
+      margin-top: 16px;
+      padding: 12px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .summary-score {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .summary-score.safe {
+      color: #22c55e;
+    }
+
+    .summary-score.warning {
+      color: #f59e0b;
+    }
+
+    .summary-score.danger {
+      color: #ef4444;
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="logo">🛡️ SponsorGuard</div>
     <div class="subtitle">AI Agent for Gmail Detection</div>
+    <button class="debug-btn" id="debugBtn" title="Debug Mode">🐛</button>
   </div>
   
   <div class="stats">
     <div id="recentActivity" class="recent-activity">
-      <div class="activity-header">📧 Recent Activity</div>
-      <div id="activityList" class="activity-list">
-        <div class="activity-item">Waiting for sponsor emails...</div>
+      <div class="activity-header">✅ Verification Checklist</div>
+      <div id="checklistContainer" class="checklist-container">
+        <div class="verification-row" id="domainCheck">
+          <span class="status-icon">⏳</span>
+          <span class="item-label">Domain:</span>
+          <span class="item-value">Checking...</span>
+        </div>
+        
+        <div class="verification-row" id="websiteCheck">
+          <span class="status-icon">⏳</span>
+          <span class="item-label">Website:</span>
+          <span class="item-value">Checking...</span>
+        </div>
+        
+        <div class="verification-row" id="contactCheck">
+          <span class="status-icon">⏳</span>
+          <span class="item-label">Contact:</span>
+          <span class="item-value">Checking...</span>
+        </div>
+        
+        <div class="verification-row" id="phoneCheck">
+          <span class="status-icon">⏳</span>
+          <span class="item-label">Phone:</span>
+          <span class="item-value">Checking...</span>
+        </div>
+        
+        <div class="verification-row" id="linkedinCheck">
+          <span class="status-icon">⏳</span>
+          <span class="item-label">LinkedIn:</span>
+          <span class="item-value">Checking...</span>
+        </div>
+        
+        <div class="verification-row" id="riskCheck">
+          <span class="status-icon">⏳</span>
+          <span class="item-label">Risk Score:</span>
+          <span class="item-value">Analyzing...</span>
+        </div>
       </div>
     </div>
     
@@ -239,29 +397,17 @@
   </div>
   
   <div class="buttons">
-    <button class="primary-btn" id="openDocsBtn">
-      📄 Open Google Docs Tracker
-    </button>
     <button id="refreshBtn">
       🔄 Refresh Analysis
-    </button>
-    <button id="debugBtn">
-      🐛 Debug Mode
-    </button>
-    <button id="settingsBtn">
-      ⚙️ Extension Settings
     </button>
   </div>
   
   <div class="status" id="status">
-    Ready to detect sponsor emails
   </div>
   
   <div class="feature-list">
-    ✅ Real-time Gmail monitoring<br>
-    ✅ AI-powered sponsor detection<br>
-    ✅ Automatic Google Docs export<br>
-    ✅ Company verification & analysis
+    <strong>Multi-Layer Analysis</strong><br>
+    WHOIS verification, domain reputation, LinkedIn validation, phone number checks
   </div>
 
   <script src="popup.js"></script>

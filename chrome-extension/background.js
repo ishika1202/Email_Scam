@@ -123,6 +123,29 @@ Body: ${emailData.body}
           message: `Sponsor detected: ${emailData.subject}`,
           timestamp: new Date().toISOString()
         });
+        
+        // Send detailed sponsor data to popup for local storage
+        const sponsorData = {
+          companyName: result.extractedInfo?.companyName || this.extractCompanyFromEmail(emailData) || 'Unknown Company',
+          website: result.extractedInfo?.website || this.extractWebsiteFromEmail(emailData) || 'Not provided',
+          agenda: result.extractedInfo?.offer || result.extractedInfo?.agenda || this.extractAgendaFromEmail(emailData) || 'Sponsorship opportunity',
+          riskScore: result.riskScore || 0,
+          contactPerson: result.extractedInfo?.contactPerson || this.extractContactFromEmail(emailData) || emailData.sender || 'Not specified',
+          moneyOffered: this.extractMoneyFromEmail(emailData) || 'Not specified',
+          emailSubject: emailData.subject,
+          timestamp: new Date().toISOString(),
+          extractedInfo: result.extractedInfo || {}
+        };
+        
+        // Send to popup for local storage
+        try {
+          chrome.runtime.sendMessage({
+            type: 'sponsorDetected',
+            data: sponsorData
+          }).catch(() => {}); // Ignore if popup not open
+        } catch (error) {
+          // Popup not open, ignore
+        }
       }
 
       return finalResult;
@@ -198,9 +221,184 @@ Body: ${emailData.body}
     return {
       companyName: companyMatch ? companyMatch[1].trim() : 'Not specified',
       website: websiteMatch ? websiteMatch[0] : 'Not specified',
-      contactPerson: emailData.sender || 'Not specified',
-      offer: 'Please check email for details'
+      offer: 'Potential business opportunity detected'
     };
+  }
+
+  extractCompanyFromEmail(emailData) {
+    const text = emailData.body.toLowerCase();
+    
+    // Look for company patterns
+    const companyPatterns = [
+      /(?:from|at|with|for)\s+([A-Z][a-zA-Z\s&.,-]{2,30}(?:Inc|LLC|Corp|Ltd|Company|Co\.|Group))/i,
+      /I(?:'m| am)\s+from\s+([A-Z][a-zA-Z\s&.,-]{2,30})/i,
+      /we(?:'re| are)\s+([A-Z][a-zA-Z\s&.,-]{2,30})/i,
+      /([A-Z][a-zA-Z\s&.,-]{2,30})\s+(?:company|brand|business|startup)/i
+    ];
+
+    for (const pattern of companyPatterns) {
+      const match = emailData.body.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+
+    // Extract from email domain
+    const emailMatch = emailData.sender.match(/@([^.]+)/);
+    if (emailMatch) {
+      return this.capitalizeWords(emailMatch[1]);
+    }
+
+    return null;
+  }
+
+  extractWebsiteFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for website URLs
+    const urlPatterns = [
+      /https?:\/\/(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+      /(?:website|site|visit|check out).*?(www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i
+    ];
+
+    for (const pattern of urlPatterns) {
+      const matches = text.matchAll(pattern);
+      for (const match of matches) {
+        const domain = match[1] || match[2];
+        if (domain && !domain.includes('gmail') && !domain.includes('google')) {
+          return domain.startsWith('www.') ? domain : `www.${domain}`;
+        }
+      }
+    }
+
+    // Extract from sender email domain
+    const emailMatch = emailData.sender.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) {
+      return `www.${emailMatch[1]}`;
+    }
+
+    return null;
+  }
+
+  extractAgendaFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for opportunity/proposal descriptions
+    const agendaPatterns = [
+      /(?:we|I)(?:'d| would) (?:like|love) to (?:offer|propose|discuss|partner|collaborate)([^.!?]{10,100})/i,
+      /(?:opportunity|proposal|partnership|collaboration|deal)(?:\s+is)?([^.!?]{10,100})/i,
+      /(?:looking for|seeking|interested in)([^.!?]{10,100})/i,
+      /(?:sponsor|promote|feature|review|endorse)([^.!?]{10,100})/i
+    ];
+
+    for (const pattern of agendaPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+
+    // Fallback: first meaningful sentence
+    const sentences = text.split(/[.!?]+/);
+    for (const sentence of sentences) {
+      if (sentence.length > 20 && sentence.length < 150) {
+        const cleaned = sentence.trim();
+        if (this.containsSponsorKeywords(cleaned)) {
+          return cleaned;
+        }
+      }
+    }
+
+    return 'Sponsorship opportunity detected';
+  }
+
+  extractContactFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for name patterns
+    const namePatterns = [
+      /(?:I'm|I am|My name is|This is)\s+([A-Z][a-zA-Z\s]{2,25})/i,
+      /(?:Best regards|Sincerely|Thanks),?\s*([A-Z][a-zA-Z\s]{2,25})/i,
+      /From:\s*([A-Z][a-zA-Z\s]{2,25})/i
+    ];
+
+    for (const pattern of namePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const name = match[1].trim();
+        // Avoid generic words
+        if (!['Team', 'Support', 'Marketing', 'Sales'].includes(name)) {
+          return name;
+        }
+      }
+    }
+
+    // Extract name from email address
+    const emailMatch = emailData.sender.match(/^([a-zA-Z.]+)@/);
+    if (emailMatch) {
+      const name = emailMatch[1].replace(/[._]/g, ' ');
+      return this.capitalizeWords(name);
+    }
+
+    return null;
+  }
+
+  extractMoneyFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for money amounts
+    const moneyPatterns = [
+      /\$([0-9,]+(?:\.[0-9]{2})?)/g,
+      /([0-9,]+)\s*(?:dollars?|USD|usd)/gi,
+      /(?:pay|offer|budget|compensation|fee).*?\$?([0-9,]+)/gi,
+      /([0-9,]+)\s*(?:per|for)\s+(?:post|video|review|mention)/gi
+    ];
+
+    const amounts = [];
+    for (const pattern of moneyPatterns) {
+      const matches = text.matchAll(pattern);
+      for (const match of matches) {
+        const amount = match[1].replace(/,/g, '');
+        if (parseInt(amount) > 0) {
+          amounts.push(`$${match[1]}`);
+        }
+      }
+    }
+
+    if (amounts.length > 0) {
+      return amounts[0]; // Return first amount found
+    }
+
+    // Look for non-specific money mentions
+    const moneyMentions = [
+      /(?:competitive|good|fair|generous)\s+(?:compensation|payment|fee)/i,
+      /(?:paid|paying)\s+(?:opportunity|partnership|collaboration)/i,
+      /(?:budget|compensation|payment).*?(?:available|negotiable|discussed)/i
+    ];
+
+    for (const pattern of moneyMentions) {
+      if (text.match(pattern)) {
+        return 'Compensation mentioned';
+      }
+    }
+
+    return 'Not specified';
+  }
+
+  containsSponsorKeywords(text) {
+    const sponsorKeywords = [
+      'sponsor', 'partnership', 'collaboration', 'brand deal',
+      'influencer', 'campaign', 'promotion', 'advertising'
+    ];
+    
+    const lowerText = text.toLowerCase();
+    return sponsorKeywords.some(keyword => lowerText.includes(keyword));
+  }
+
+  capitalizeWords(str) {
+    return str.split(' ').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
   }
 
   async updateStats(statType) {

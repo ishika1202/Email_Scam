@@ -246,6 +246,12 @@ class SponsorGuardAgent {
         this.sponsorEmails.push(result);
         this.markAsSponsorEmail(element, result);
         
+        // Extract sponsor details for saving
+        const sponsorData = this.extractSponsorDetails(result, emailData);
+        
+        // Send to popup for local storage
+        this.sendToPopupStorage(sponsorData);
+        
         // Send to Google Docs
         await this.sendToGoogleDocs(result);
         
@@ -448,6 +454,236 @@ class SponsorGuardAgent {
     this.processedEmails.clear();
     this.processExistingEmails();
   }
+
+  extractSponsorDetails(result, emailData) {
+    // Extract company name
+    let companyName = result.extractedInfo?.companyName || 
+                     this.extractCompanyFromEmail(emailData) || 
+                     'Unknown Company';
+
+    // Extract website/domain
+    let website = result.extractedInfo?.website || 
+                 this.extractWebsiteFromEmail(emailData) || 
+                 'Not provided';
+
+    // Extract 2-liner agenda
+    let agenda = result.extractedInfo?.offer || 
+                result.extractedInfo?.agenda ||
+                this.extractAgendaFromEmail(emailData) || 
+                'Sponsorship opportunity';
+
+    // Get risk score
+    let riskScore = result.riskScore || 0;
+
+    // Extract contact person
+    let contactPerson = result.extractedInfo?.contactPerson || 
+                       this.extractContactFromEmail(emailData) || 
+                       emailData.sender || 
+                       'Not specified';
+
+    // Extract money offered
+    let moneyOffered = this.extractMoneyFromEmail(emailData) || 'Not specified';
+
+    return {
+      companyName,
+      website,
+      agenda: this.limitText(agenda, 120), // 2-liner limit
+      riskScore,
+      contactPerson,
+      moneyOffered,
+      emailSubject: emailData.subject,
+      timestamp: emailData.timestamp,
+      extractedInfo: result.extractedInfo || {}
+    };
+  }
+
+  extractCompanyFromEmail(emailData) {
+    const text = emailData.body.toLowerCase();
+    
+    // Look for company patterns
+    const companyPatterns = [
+      /(?:from|at|with|for)\s+([A-Z][a-zA-Z\s&.,-]{2,30}(?:Inc|LLC|Corp|Ltd|Company|Co\.|Group))/i,
+      /I(?:'m| am)\s+from\s+([A-Z][a-zA-Z\s&.,-]{2,30})/i,
+      /we(?:'re| are)\s+([A-Z][a-zA-Z\s&.,-]{2,30})/i,
+      /([A-Z][a-zA-Z\s&.,-]{2,30})\s+(?:company|brand|business|startup)/i
+    ];
+
+    for (const pattern of companyPatterns) {
+      const match = emailData.body.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+
+    // Extract from email domain
+    const emailMatch = emailData.sender.match(/@([^.]+)/);
+    if (emailMatch) {
+      return this.capitalizeWords(emailMatch[1]);
+    }
+
+    return null;
+  }
+
+  extractWebsiteFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for website URLs
+    const urlPatterns = [
+      /https?:\/\/(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+      /(?:website|site|visit|check out).*?(www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i
+    ];
+
+    for (const pattern of urlPatterns) {
+      const matches = text.matchAll(pattern);
+      for (const match of matches) {
+        const domain = match[1] || match[2];
+        if (domain && !domain.includes('gmail') && !domain.includes('google')) {
+          return domain.startsWith('www.') ? domain : `www.${domain}`;
+        }
+      }
+    }
+
+    // Extract from sender email domain
+    const emailMatch = emailData.sender.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) {
+      return `www.${emailMatch[1]}`;
+    }
+
+    return null;
+  }
+
+  extractAgendaFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for opportunity/proposal descriptions
+    const agendaPatterns = [
+      /(?:we|I)(?:'d| would) (?:like|love) to (?:offer|propose|discuss|partner|collaborate)([^.!?]{10,100})/i,
+      /(?:opportunity|proposal|partnership|collaboration|deal)(?:\s+is)?([^.!?]{10,100})/i,
+      /(?:looking for|seeking|interested in)([^.!?]{10,100})/i,
+      /(?:sponsor|promote|feature|review|endorse)([^.!?]{10,100})/i
+    ];
+
+    for (const pattern of agendaPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+
+    // Fallback: first meaningful sentence
+    const sentences = text.split(/[.!?]+/);
+    for (const sentence of sentences) {
+      if (sentence.length > 20 && sentence.length < 150) {
+        const cleaned = sentence.trim();
+        if (this.hasSponsortKeywords({ subject: '', body: cleaned })) {
+          return cleaned;
+        }
+      }
+    }
+
+    return 'Sponsorship opportunity detected';
+  }
+
+  extractContactFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for name patterns
+    const namePatterns = [
+      /(?:I'm|I am|My name is|This is)\s+([A-Z][a-zA-Z\s]{2,25})/i,
+      /(?:Best regards|Sincerely|Thanks),?\s*([A-Z][a-zA-Z\s]{2,25})/i,
+      /From:\s*([A-Z][a-zA-Z\s]{2,25})/i
+    ];
+
+    for (const pattern of namePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const name = match[1].trim();
+        // Avoid generic words
+        if (!['Team', 'Support', 'Marketing', 'Sales'].includes(name)) {
+          return name;
+        }
+      }
+    }
+
+    // Extract name from email address
+    const emailMatch = emailData.sender.match(/^([a-zA-Z.]+)@/);
+    if (emailMatch) {
+      const name = emailMatch[1].replace(/[._]/g, ' ');
+      return this.capitalizeWords(name);
+    }
+
+    return null;
+  }
+
+  extractMoneyFromEmail(emailData) {
+    const text = emailData.body;
+    
+    // Look for money amounts
+    const moneyPatterns = [
+      /\$([0-9,]+(?:\.[0-9]{2})?)/g,
+      /([0-9,]+)\s*(?:dollars?|USD|usd)/gi,
+      /(?:pay|offer|budget|compensation|fee).*?\$?([0-9,]+)/gi,
+      /([0-9,]+)\s*(?:per|for)\s+(?:post|video|review|mention)/gi
+    ];
+
+    const amounts = [];
+    for (const pattern of moneyPatterns) {
+      const matches = text.matchAll(pattern);
+      for (const match of matches) {
+        const amount = match[1].replace(/,/g, '');
+        if (parseInt(amount) > 0) {
+          amounts.push(`$${match[1]}`);
+        }
+      }
+    }
+
+    if (amounts.length > 0) {
+      return amounts[0]; // Return first amount found
+    }
+
+    // Look for non-specific money mentions
+    const moneyMentions = [
+      /(?:competitive|good|fair|generous)\s+(?:compensation|payment|fee)/i,
+      /(?:paid|paying)\s+(?:opportunity|partnership|collaboration)/i,
+      /(?:budget|compensation|payment).*?(?:available|negotiable|discussed)/i
+    ];
+
+    for (const pattern of moneyMentions) {
+      if (text.match(pattern)) {
+        return 'Compensation mentioned';
+      }
+    }
+
+    return 'Not specified';
+  }
+
+  capitalizeWords(str) {
+    return str.split(' ').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
+  }
+
+  limitText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength - 3) + '...';
+  }
+
+  sendToPopupStorage(sponsorData) {
+    try {
+      chrome.runtime.sendMessage({
+        type: 'sponsorDetected',
+        data: sponsorData
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('Error sending to popup storage:', chrome.runtime.lastError.message);
+        } else {
+          console.log('📦 Sponsor data sent to popup storage:', sponsorData.companyName);
+        }
+      });
+    } catch (error) {
+      console.error('Error sending sponsor data to popup:', error);
+    }
+  }
 }
 
 // Initialize when DOM is ready
@@ -485,16 +721,39 @@ window.sponsorGuardTest = () => {
       <div>Subject: Brand Partnership Opportunity</div>
       <div>Hi! We'd love to partner with you for a sponsored post about our new product. 
       We're a growing company looking for influencers to promote our brand. 
-      This is a great business opportunity for collaboration.</div>
+      This is a great business opportunity for collaboration. We offer $500 per post.</div>
     `;
     testEmail.style.cssText = 'border: 2px dashed #ccc; padding: 10px; margin: 10px; background: #f9f9f9;';
     
     // Insert test email at top of page
     document.body.insertBefore(testEmail, document.body.firstChild);
     
-    // Process the test email
-    window.sponsorGuard.processEmail(testEmail);
+    // Manually mark as sponsor for testing
+    const testResult = {
+      isSponsor: true,
+      riskScore: 25,
+      extractedInfo: {
+        companyName: 'Test Company',
+        offer: 'Brand partnership opportunity'
+      }
+    };
     
-    console.log('✅ Test email created and processed');
+    window.sponsorGuard.markAsSponsorEmail(testEmail, testResult);
+    
+    console.log('✅ Test sponsor email created with purple box!');
+    
+    // Also test the extraction
+    const emailData = {
+      subject: 'Brand Partnership Opportunity',
+      sender: 'marketing@testcompany.com',
+      body: 'Hi! We\'d love to partner with you for a sponsored post about our new product. We\'re a growing company looking for influencers to promote our brand. This is a great business opportunity for collaboration. We offer $500 per post.'
+    };
+    
+    const extractedData = window.sponsorGuard.extractSponsorDetails(testResult, emailData);
+    console.log('📧 Extracted sponsor data:', extractedData);
+    
+    return testEmail;
+  } else {
+    console.error('❌ SponsorGuard not found - extension may not be loaded');
   }
 }; 
