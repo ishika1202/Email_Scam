@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 380px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    .stats {
+      background: rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .stat-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .stat-label {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .stat-value {
+      font-weight: bold;
+      font-size: 18px;
+      padding: 4px 8px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+    }
+    
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    button {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 14px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    button:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-1px);
+    }
+    
+    .primary-btn {
+      background: rgba(255,255,255,0.9);
+      color: #764ba2;
+      font-weight: bold;
+    }
+    
+    .primary-btn:hover {
+      background: white;
+    }
+    
+    .status {
+      text-align: center;
+      font-size: 13px;
+      margin-top: 16px;
+      opacity: 0.85;
+      padding: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 6px;
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .spinner {
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top: 2px solid white;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .success {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+    
+    .error {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+    
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      margin-top: 8px;
+      padding: 6px 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    
+    .status-dot.online {
+      background: #22c55e;
+    }
+    
+    .feature-list {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 12px;
+      line-height: 1.4;
+    }
+
+    .recent-activity {
+      margin-bottom: 16px;
+    }
+
+    .activity-header {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+
+    .activity-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .activity-item {
+      font-size: 11px;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      border-left: 3px solid transparent;
+      line-height: 1.3;
+    }
+
+    .activity-item.sponsor {
+      border-left-color: #22c55e;
+      background: rgba(34, 197, 94, 0.15);
+    }
+
+    .activity-item.scanned {
+      border-left-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.15);
+    }
+
+    .activity-item.error {
+      border-left-color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    .activity-time {
+      opacity: 0.7;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🛡️ SponsorGuard</div>
+    <div class="subtitle">AI Agent for Gmail Detection</div>
+  </div>
+  
+  <div class="stats">
+    <div id="recentActivity" class="recent-activity">
+      <div class="activity-header">📧 Recent Activity</div>
+      <div id="activityList" class="activity-list">
+        <div class="activity-item">Waiting for sponsor emails...</div>
+      </div>
+    </div>
+    
+    <div class="api-status">
+      <div class="status-dot" id="apiStatusDot"></div>
+      <span id="apiStatusText">Checking API...</span>
+    </div>
+  </div>
+  
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>Processing...</div>
+  </div>
+  
+  <div class="buttons">
+    <button class="primary-btn" id="openDocsBtn">
+      📄 Open Google Docs Tracker
+    </button>
+    <button id="refreshBtn">
+      🔄 Refresh Analysis
+    </button>
+    <button id="debugBtn">
+      🐛 Debug Mode
+    </button>
+    <button id="settingsBtn">
+      ⚙️ Extension Settings
+    </button>
+  </div>
+  
+  <div class="status" id="status">
+    Ready to detect sponsor emails
+  </div>
+  
+  <div class="feature-list">
+    ✅ Real-time Gmail monitoring<br>
+    ✅ AI-powered sponsor detection<br>
+    ✅ Automatic Google Docs export<br>
+    ✅ Company verification & analysis
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html> 

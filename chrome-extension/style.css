@@ -1,0 +1,184 @@
+/* SponsorGuard Gmail Integration Styles */
+
+/* Sponsor label styling */
+.sponsor-guard-label {
+  z-index: 10000 !important;
+  position: relative !important;
+}
+
+/* Email highlighting */
+.sponsor-guard-highlight {
+  border-left: 4px solid #667eea !important;
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08) 0%, transparent 100%) !important;
+  transition: all 0.3s ease;
+}
+
+/* Sponsor email indicator for inbox view */
+.sponsor-guard-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: bold;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  backdrop-filter: blur(10px);
+}
+
+/* Gmail conversation view enhancements */
+.nH.if .sponsor-guard-label {
+  margin: 8px 0 12px 0;
+}
+
+/* Inbox view enhancements */
+.yW .sponsor-guard-indicator {
+  position: relative;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+/* High-contrast mode for important sponsors */
+.sponsor-guard-high-value {
+  border-left: 6px solid #f59e0b !important;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, transparent 100%) !important;
+}
+
+.sponsor-guard-high-value .sponsor-guard-label {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  animation: highValuePulse 3s ease-in-out infinite;
+}
+
+/* Animation for new sponsor emails */
+@keyframes sponsorPulse {
+  0% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+  50% { 
+    transform: scale(1.05); 
+    opacity: 0.8; 
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+  100% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+}
+
+@keyframes highValuePulse {
+  0%, 100% { 
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2); 
+  }
+  50% { 
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5); 
+  }
+}
+
+.sponsor-guard-new {
+  animation: sponsorPulse 2s ease-in-out 3;
+}
+
+/* Gmail thread view styling */
+.ii.gt .sponsor-guard-label {
+  margin: 8px 0;
+  display: block;
+}
+
+/* Confidence indicators */
+.sponsor-guard-confidence-high {
+  border-color: #22c55e !important;
+}
+
+.sponsor-guard-confidence-medium {
+  border-color: #f59e0b !important;
+}
+
+.sponsor-guard-confidence-low {
+  border-color: #ef4444 !important;
+}
+
+/* Hover effects */
+.sponsor-guard-label:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .sponsor-guard-indicator {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+  
+  .sponsor-guard-label {
+    font-size: 10px !important;
+    padding: 4px 8px !important;
+  }
+}
+
+/* Dark mode compatibility */
+@media (prefers-color-scheme: dark) {
+  .sponsor-guard-highlight {
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.15) 0%, transparent 100%) !important;
+  }
+  
+  .sponsor-guard-high-value {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.15) 0%, transparent 100%) !important;
+  }
+}
+
+/* Integration with Gmail's existing styles */
+.zA .sponsor-guard-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.cf.zt .sponsor-guard-label {
+  margin: 4px 0 8px 0;
+}
+
+/* Loading state */
+.sponsor-guard-processing {
+  position: relative;
+}
+
+.sponsor-guard-processing::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #667eea, transparent);
+  animation: loadingBar 2s ease-in-out infinite;
+}
+
+@keyframes loadingBar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Success states */
+.sponsor-guard-saved {
+  border-left-color: #22c55e !important;
+}
+
+.sponsor-guard-saved .sponsor-guard-label::after {
+  content: " ✓";
+  color: #22c55e;
+}
+
+/* Error states */
+.sponsor-guard-error {
+  border-left-color: #ef4444 !important;
+}
+
+.sponsor-guard-error .sponsor-guard-label::after {
+  content: " ⚠";
+  color: #ef4444;
+} 

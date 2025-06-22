@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "SponsorGuard AI Agent",
+  "version": "1.0.0",
+  "description": "AI-powered sponsor email detection and Google Docs integration for influencers",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "identity",
+    "notifications",
+    "scripting",
+    "https://www.googleapis.com/*",
+    "https://mail.google.com/*",
+    "https://gmail.com/*"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://gmail.com/*",
+    "https://www.googleapis.com/*",
+    "https://docs.google.com/*",
+    "http://localhost:3000/*"
+  ],
+  "oauth2": {
+    "client_id": "YOUR_GOOGLE_CLIENT_ID",
+    "scopes": [
+      "https://www.googleapis.com/auth/documents",
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/gmail.readonly"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*", "https://gmail.com/*"],
+      "js": ["content.js"],
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SponsorGuard AI Agent"
+  }
+} 

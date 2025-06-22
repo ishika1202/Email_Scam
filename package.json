@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "extension:build": "echo 'Chrome extension ready for development'",
+    "extension:package": "cd chrome-extension && zip -r ../sponsorguard-extension.zip . -x '*.DS_Store' '*/.*'",
+    "full-build": "npm run build && npm run extension:package"
   },
   "keywords": [
     "email",
